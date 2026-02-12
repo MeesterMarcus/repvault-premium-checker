@@ -67,17 +67,22 @@ function safeTimingEqualHex(actualHex: string, expectedHex: string): boolean {
   return timingSafeEqual(Buffer.from(actualHex, "hex"), Buffer.from(expectedHex, "hex"));
 }
 
-function verifyRevenueCatSignature(
-  headers: Record<string, string | undefined> | null | undefined,
-  rawBody: string,
-  secret: string
-): boolean {
-  const signature = getHeaderValue(headers, "x-revenuecat-signature");
-  if (!signature || !secret) {
+function safeTimingEqualString(actual: string, expected: string): boolean {
+  if (actual.length !== expected.length) {
     return false;
   }
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  return safeTimingEqualHex(signature.toLowerCase(), expected.toLowerCase());
+  return timingSafeEqual(Buffer.from(actual, "utf8"), Buffer.from(expected, "utf8"));
+}
+
+function verifyRevenueCatAuthorization(
+  headers: Record<string, string | undefined> | null | undefined,
+  secret: string
+): boolean {
+  const authorization = getHeaderValue(headers, "authorization");
+  if (!authorization || !secret) {
+    return false;
+  }
+  return safeTimingEqualString(authorization, secret);
 }
 
 function verifyStripeSignature(
@@ -119,7 +124,7 @@ function verifySignature(
   if (provider === "stripe") {
     return verifyStripeSignature(headers, rawBody, secret);
   }
-  return verifyRevenueCatSignature(headers, rawBody, secret);
+  return verifyRevenueCatAuthorization(headers, secret);
 }
 
 function normalizeRevenueCatEvent(payload: unknown): NormalizedWebhookEvent {

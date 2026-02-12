@@ -1,17 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "crypto";
 import { APIGatewayProxyEvent } from "aws-lambda";
 import { createSubscriptionWebhookHandler } from "../src/subscriptionWebhook";
 
-function makeRevenueCatSignature(body: string, secret: string): string {
-  return createHmac("sha256", secret).update(body).digest("hex");
-}
-
-function makeEvent(body: string, signature: string): APIGatewayProxyEvent {
+function makeEvent(body: string, authorization: string): APIGatewayProxyEvent {
   return {
     body,
-    headers: { "x-revenuecat-signature": signature },
+    headers: { authorization },
     multiValueHeaders: {},
     httpMethod: "POST",
     isBase64Encoded: false,
@@ -42,7 +37,7 @@ test("valid signature + premium event updates profile to premium", async () => {
     },
   };
   const rawBody = JSON.stringify(payload);
-  const event = makeEvent(rawBody, makeRevenueCatSignature(rawBody, "test-secret"));
+  const event = makeEvent(rawBody, "test-secret");
 
   const upsertCalls: Array<Record<string, unknown>> = [];
   const handler = createSubscriptionWebhookHandler({
@@ -75,7 +70,7 @@ test("valid signature + downgrade event updates profile to free", async () => {
     },
   };
   const rawBody = JSON.stringify(payload);
-  const event = makeEvent(rawBody, makeRevenueCatSignature(rawBody, "test-secret"));
+  const event = makeEvent(rawBody, "test-secret");
 
   const upsertCalls: Array<Record<string, unknown>> = [];
   const handler = createSubscriptionWebhookHandler({
@@ -108,7 +103,7 @@ test("duplicate eventId returns idempotent no-op", async () => {
     },
   };
   const rawBody = JSON.stringify(payload);
-  const event = makeEvent(rawBody, makeRevenueCatSignature(rawBody, "test-secret"));
+  const event = makeEvent(rawBody, "test-secret");
 
   let upsertCalled = false;
   let recordCalled = false;
@@ -145,7 +140,7 @@ test("bad signature returns 401 INVALID_SIGNATURE", async () => {
     },
   };
   const rawBody = JSON.stringify(payload);
-  const event = makeEvent(rawBody, "not-valid-signature");
+  const event = makeEvent(rawBody, "not-valid-authorization");
 
   const handler = createSubscriptionWebhookHandler({
     getProcessedEvent: async () => false,
@@ -177,7 +172,7 @@ test("missing user ID returns 400 MISSING_USER_ID", async () => {
     },
   };
   const rawBody = JSON.stringify(payload);
-  const event = makeEvent(rawBody, makeRevenueCatSignature(rawBody, "test-secret"));
+  const event = makeEvent(rawBody, "test-secret");
 
   const handler = createSubscriptionWebhookHandler({
     getProcessedEvent: async () => false,
