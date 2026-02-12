@@ -12,12 +12,14 @@ Parameters:
     AllowedValues:
       - revenuecat
       - stripe
+  UserProfileTableName:
+    Type: String
+    Default: UserProfileTable
 
 Resources:
   SubscriptionWebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: subscriptionWebhookFunction
       Runtime: nodejs22.x
       Handler: dist/src/subscriptionWebhook.handler
       CodeUri: ./
@@ -25,8 +27,8 @@ Resources:
       Timeout: 15
       Environment:
         Variables:
-          USER_PROFILE_TABLE_NAME: UserProfileTable
-          WEBHOOK_EVENTS_TABLE_NAME: WebhookEventsTable
+          USER_PROFILE_TABLE_NAME: !Ref UserProfileTableName
+          WEBHOOK_EVENTS_TABLE_NAME: !Ref WebhookEventsTable
           WEBHOOK_PROVIDER: !Ref WebhookProvider
           WEBHOOK_SECRET: !Ref WebhookSecret
           LOG_LEVEL: info
@@ -39,7 +41,7 @@ Resources:
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
               Resource:
-                - !GetAtt UserProfileTable.Arn
+                - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserProfileTableName}
                 - !GetAtt WebhookEventsTable.Arn
       Events:
         SubscriptionWebhookRoute:
@@ -62,22 +64,9 @@ Resources:
         AllowOrigins:
           - "*"
 
-  UserProfileTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: UserProfileTable
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-
   WebhookEventsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: WebhookEventsTable
       AttributeDefinitions:
         - AttributeName: eventId
           AttributeType: S
