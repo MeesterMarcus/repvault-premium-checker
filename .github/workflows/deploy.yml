@@ -44,8 +44,18 @@ jobs:
       - name: SAM build
         run: sam build
 
+      - name: Validate required deploy secrets
+        env:
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$WEBHOOK_SECRET" ]; then
+            echo "Missing required repository secret: WEBHOOK_SECRET"
+            exit 1
+          fi
+
       - name: SAM deploy
         env:
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           WEBHOOK_PROVIDER: ${{ vars.WEBHOOK_PROVIDER }}
         run: |
           sam deploy \
@@ -56,5 +66,5 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides \
-              WebhookSecret=${{ secrets.WEBHOOK_SECRET }} \
-              WebhookProvider=${WEBHOOK_PROVIDER:-revenuecat}
+              "WebhookSecret=${WEBHOOK_SECRET}" \
+              "WebhookProvider=${WEBHOOK_PROVIDER:-revenuecat}"
