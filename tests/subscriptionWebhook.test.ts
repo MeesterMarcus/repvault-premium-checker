@@ -218,3 +218,37 @@ test("RevenueCat TEST event returns 200 no-op", async () => {
   assert.equal(result.statusCode, 200);
   assert.deepEqual(parseBody(result.body), { ok: true });
 });
+
+test("RevenueCat TRANSFER event maps to premium and uses transferred_to userId", async () => {
+  process.env.WEBHOOK_PROVIDER = "revenuecat";
+  process.env.WEBHOOK_SECRET = "test-secret";
+
+  const payload = {
+    event: {
+      id: "evt_transfer_1",
+      type: "TRANSFER",
+      transferred_to: ["user_after_restore"],
+    },
+  };
+  const rawBody = JSON.stringify(payload);
+  const event = makeEvent(rawBody, "test-secret");
+
+  const upsertCalls: Array<Record<string, unknown>> = [];
+  const handler = createSubscriptionWebhookHandler({
+    getProcessedEvent: async () => false,
+    upsertUserProfile: async (input) => {
+      upsertCalls.push(input as unknown as Record<string, unknown>);
+    },
+    recordProcessedEvent: async () => "recorded",
+    nowIso: () => "2026-02-12T00:00:00.000Z",
+    logInfo: () => undefined,
+    logError: () => undefined,
+  });
+
+  const result = await handler(event);
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(parseBody(result.body), { ok: true });
+  assert.equal(upsertCalls.length, 1);
+  assert.equal(upsertCalls[0].userId, "user_after_restore");
+  assert.equal(upsertCalls[0].isPremium, true);
+});

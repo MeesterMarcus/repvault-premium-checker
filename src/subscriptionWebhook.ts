@@ -134,12 +134,14 @@ function normalizeRevenueCatEvent(payload: unknown): NormalizedWebhookEvent {
 
   const rawEvent = isRecord(payload.event) ? payload.event : payload;
   const eventId = typeof rawEvent.id === "string" ? rawEvent.id : typeof rawEvent.event_id === "string" ? rawEvent.event_id : "";
+  const transferredTo = Array.isArray(rawEvent.transferred_to) ? rawEvent.transferred_to : undefined;
+  const transferUserId = transferredTo && typeof transferredTo[0] === "string" ? transferredTo[0] : "";
   const userId =
     typeof rawEvent.app_user_id === "string"
       ? rawEvent.app_user_id
       : typeof rawEvent.user_id === "string"
         ? rawEvent.user_id
-        : "";
+        : transferUserId;
 
   if (!eventId) {
     throw new ApiError(400, "INVALID_EVENT", "Missing eventId.");
@@ -169,6 +171,7 @@ function normalizeRevenueCatEvent(payload: unknown): NormalizedWebhookEvent {
     "purchase",
     "product_change",
     "subscription_resumed",
+    "transfer",
   ]);
   const freeEventTypes = new Set([
     "expiration",
