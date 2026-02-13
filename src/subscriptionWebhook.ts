@@ -328,20 +328,24 @@ function buildDynamoDependencies(config: WebhookConfig): HandlerDependencies {
         ":updatedAt": input.updatedAt,
         ":source": input.source,
       };
-      const expressionAttributeNames: Record<string, string> = { "#src": "source" };
+      const expressionAttributeNames: Record<string, string> = {
+        "#src": "source",
+        "#plan": "plan",
+        "#expiresAt": "expiresAt",
+      };
 
       if (input.plan !== undefined) {
-        setClauses.push("plan = :plan");
+        setClauses.push("#plan = :plan");
         expressionAttributeValues[":plan"] = input.plan;
       } else {
-        removeClauses.push("plan");
+        removeClauses.push("#plan");
       }
 
       if (input.expiresAt !== undefined) {
-        setClauses.push("expiresAt = :expiresAt");
+        setClauses.push("#expiresAt = :expiresAt");
         expressionAttributeValues[":expiresAt"] = input.expiresAt;
       } else {
-        removeClauses.push("expiresAt");
+        removeClauses.push("#expiresAt");
       }
 
       const updateExpression = removeClauses.length
