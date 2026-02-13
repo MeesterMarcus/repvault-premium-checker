@@ -192,3 +192,29 @@ test("missing user ID returns 400 MISSING_USER_ID", async () => {
     },
   });
 });
+
+test("RevenueCat TEST event returns 200 no-op", async () => {
+  process.env.WEBHOOK_PROVIDER = "revenuecat";
+  process.env.WEBHOOK_SECRET = "test-secret";
+
+  const payload = {
+    event: {
+      type: "TEST",
+    },
+  };
+  const rawBody = JSON.stringify(payload);
+  const event = makeEvent(rawBody, "test-secret");
+
+  const handler = createSubscriptionWebhookHandler({
+    getProcessedEvent: async () => false,
+    upsertUserProfile: async () => undefined,
+    recordProcessedEvent: async () => "recorded",
+    nowIso: () => "2026-02-12T00:00:00.000Z",
+    logInfo: () => undefined,
+    logError: () => undefined,
+  });
+
+  const result = await handler(event);
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(parseBody(result.body), { ok: true });
+});

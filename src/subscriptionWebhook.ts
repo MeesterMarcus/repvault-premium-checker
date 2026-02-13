@@ -273,6 +273,20 @@ function normalizeEvent(provider: WebhookProvider, payload: unknown): Normalized
   return normalizeRevenueCatEvent(payload);
 }
 
+function isRevenueCatTestEvent(payload: unknown): boolean {
+  if (!isRecord(payload)) {
+    return false;
+  }
+  const rawEvent = isRecord(payload.event) ? payload.event : payload;
+  const eventTypeRaw =
+    typeof rawEvent.type === "string"
+      ? rawEvent.type
+      : typeof rawEvent.event_type === "string"
+        ? rawEvent.event_type
+        : "";
+  return eventTypeRaw.trim().toLowerCase() === "test";
+}
+
 function getRawBody(event: APIGatewayProxyEvent): string {
   if (!event.body) {
     return "";
@@ -386,6 +400,17 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
         payload = JSON.parse(rawBody);
       } catch {
         throw new ApiError(400, "INVALID_JSON", "Request body must be valid JSON.");
+      }
+
+      if (provider === "revenuecat" && isRevenueCatTestEvent(payload)) {
+        deps.logInfo({
+          eventId: "test_event",
+          provider,
+          userId: "n/a",
+          tier: "n/a",
+          status: "test_noop",
+        });
+        return makeResponse(200, { ok: true });
       }
 
       const normalized = normalizeEvent(provider, payload);
