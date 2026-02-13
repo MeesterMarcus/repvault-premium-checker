@@ -389,10 +389,12 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
     let eventIdForLog = "unknown";
     let userIdForLog = "unknown";
     let tierForLog = "unknown";
+    let stageForLog = "start";
     const provider = config.webhookProvider;
 
     try {
       const rawBody = getRawBody(event);
+      stageForLog = "verify_signature";
       const isValidSignature = verifySignature(provider, event.headers, rawBody, config.webhookSecret);
       if (!isValidSignature) {
         throw new ApiError(401, "INVALID_SIGNATURE", "Webhook signature verification failed.");
@@ -400,6 +402,7 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
 
       let payload: unknown;
       try {
+        stageForLog = "parse_json";
         payload = JSON.parse(rawBody);
       } catch {
         throw new ApiError(400, "INVALID_JSON", "Request body must be valid JSON.");
@@ -416,11 +419,13 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
         return makeResponse(200, { ok: true });
       }
 
+      stageForLog = "normalize_event";
       const normalized = normalizeEvent(provider, payload);
       eventIdForLog = normalized.eventId;
       userIdForLog = normalized.userId;
       tierForLog = normalized.isPremium ? "premium" : "free";
 
+      stageForLog = "idempotency_check";
       const alreadyProcessed = await deps.getProcessedEvent(normalized.eventId);
       if (alreadyProcessed) {
         deps.logInfo({
@@ -434,6 +439,7 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
       }
 
       const updatedAt = deps.nowIso();
+      stageForLog = "upsert_profile";
       await deps.upsertUserProfile({
         userId: normalized.userId,
         isPremium: normalized.isPremium,
@@ -443,6 +449,7 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
         source: `${provider}_webhook`,
       });
 
+      stageForLog = "record_event";
       const result = await deps.recordProcessedEvent({
         eventId: normalized.eventId,
         provider,
@@ -467,16 +474,21 @@ export function createSubscriptionWebhookHandler(overrides?: Partial<HandlerDepe
           userId: userIdForLog,
           tier: tierForLog,
           status: "error",
+          stage: stageForLog,
         });
         return makeErrorResponse(error.statusCode, error.code, error.message);
       }
 
+      const unknownError = isRecord(error) ? error : {};
       deps.logError({
         eventId: eventIdForLog,
         provider,
         userId: userIdForLog,
         tier: tierForLog,
         status: "error",
+        stage: stageForLog,
+        errorName: typeof unknownError.name === "string" ? unknownError.name : "UnknownError",
+        errorMessage: typeof unknownError.message === "string" ? unknownError.message : "Unknown error",
       });
       return makeErrorResponse(500, "INTERNAL_ERROR", "An unexpected internal error occurred.");
     }
